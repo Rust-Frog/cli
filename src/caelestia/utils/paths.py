@@ -32,6 +32,7 @@ wallpapers_dir: Path = Path(os.getenv("CAELESTIA_WALLPAPERS_DIR", pictures_dir /
 wallpaper_path_path: Path = c_state_dir / "wallpaper/path.txt"
 wallpaper_link_path: Path = c_state_dir / "wallpaper/current"
 wallpaper_thumbnail_path: Path = c_state_dir / "wallpaper/thumbnail.jpg"
+wallpaper_type_path: Path = c_state_dir / "wallpaper/type.txt"
 wallpapers_cache_dir: Path = c_cache_dir / "wallpapers"
 
 screenshots_dir: Path = Path(os.getenv("CAELESTIA_SCREENSHOTS_DIR", pictures_dir / "Screenshots"))
