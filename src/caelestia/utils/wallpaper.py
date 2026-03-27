@@ -74,7 +74,7 @@ def restore_video_wallpaper() -> bool:
     subprocess.run(["pkill", "-9", "mpvpaper"], stderr=subprocess.DEVNULL)
     time.sleep(0.3)
 
-    # Start mpvpaper
+    # Start mpvpaper with bottom layer (below shell)
     mpv_opts = "no-audio loop hwdec=auto vo=gpu-next"
     try:
         subprocess.Popen(
@@ -82,6 +82,8 @@ def restore_video_wallpaper() -> bool:
                 "mpvpaper",
                 "-f",  # Fork
                 "-p",  # Auto-pause when hidden
+                "-l",
+                "bottom",  # Bottom layer (below shell)
                 "-o",
                 mpv_opts,
                 "*",
@@ -339,6 +341,7 @@ def set_video_wallpaper(video: Path, no_smart: bool) -> None:
 
     # Start mpvpaper with GPU acceleration
     # Using auto hwdec to detect best method (nvdec for NVIDIA)
+    # Using bottom layer so shell doesn't cover it
     mpv_opts = "no-audio loop hwdec=auto vo=gpu-next"
 
     try:
@@ -347,6 +350,8 @@ def set_video_wallpaper(video: Path, no_smart: bool) -> None:
                 "mpvpaper",
                 "-f",  # Fork (detach)
                 "-p",  # Auto-pause when hidden
+                "-l",
+                "bottom",  # Bottom layer (below shell)
                 "-o",
                 mpv_opts,
                 "*",  # All monitors
