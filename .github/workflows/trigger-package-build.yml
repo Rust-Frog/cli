@@ -1,0 +1,20 @@
+name: Trigger Package Rebuild
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types: [published]
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger dots-package rebuild
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/Rust-Frog/dots-package/dispatches \
+            -d '{"event_type":"rebuild","client_payload":{"repo":"cli","ref":"${{ github.ref }}"}}'
