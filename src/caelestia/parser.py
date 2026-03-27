@@ -113,6 +113,12 @@ def parse_args() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
         action="store_true",
         help="restore video wallpaper if one was set (for use on boot)",
     )
+    wallpaper_parser.add_argument(
+        "-T",
+        "--thumbnail",
+        metavar="PATH",
+        help="generate and output thumbnail path for a video file",
+    )
 
     # Create parser for resizer opts
     resizer_parser = command_parser.add_parser("resizer", help="window resizer daemon")

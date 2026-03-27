@@ -3,6 +3,7 @@ from argparse import Namespace
 from pathlib import Path
 
 from caelestia.utils.wallpaper import (
+    extract_video_frame,
     get_colours_for_wall,
     get_wallpaper,
     is_valid_video,
@@ -23,6 +24,15 @@ class Command:
         if self.args.restore:
             # Restore video wallpaper if one was set (for boot)
             restore_video_wallpaper()
+        elif self.args.thumbnail:
+            # Generate and output thumbnail path for a video file
+            video_path = Path(self.args.thumbnail)
+            if is_valid_video(video_path):
+                thumb_path = extract_video_frame(video_path)
+                print(str(thumb_path))
+            else:
+                # Not a video, just output the original path (it's an image)
+                print(str(video_path.resolve()))
         elif self.args.print:
             print(json.dumps(get_colours_for_wall(self.args.print, self.args.no_smart)))
         elif self.args.file:
