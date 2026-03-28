@@ -2,7 +2,6 @@ import json
 import os
 import random
 import subprocess
-import time
 
 from argparse import Namespace
 from pathlib import Path
@@ -58,7 +57,11 @@ def get_wallpaper_type() -> str:
 
 
 def restore_video_wallpaper() -> bool:
-    """Restore video wallpaper if one was set. Returns True if restored."""
+    """Check if video wallpaper was set. Returns True if video type.
+
+    Note: Shell handles video playback natively via QtMultimedia.
+    This function is kept for compatibility but no longer spawns mpvpaper.
+    """
     if get_wallpaper_type() != "video":
         return False
 
@@ -70,32 +73,9 @@ def restore_video_wallpaper() -> bool:
     if not is_valid_video(video):
         return False
 
-    # Kill any existing mpvpaper first
-    subprocess.run(["pkill", "-9", "mpvpaper"], stderr=subprocess.DEVNULL)
-    time.sleep(0.3)
-
-    # Start mpvpaper with bottom layer (below shell)
-    mpv_opts = "no-audio loop hwdec=auto vo=gpu-next"
-    try:
-        subprocess.Popen(
-            [
-                "mpvpaper",
-                "-f",  # Fork
-                "-p",  # Auto-pause when hidden
-                "-l",
-                "bottom",  # Bottom layer (below shell)
-                "-o",
-                mpv_opts,
-                "*",
-                str(video),
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-        return True
-    except FileNotFoundError:
-        return False
+    # Shell handles video playback automatically when it reads path.txt
+    # No external process needed
+    return True
 
 
 def get_wallpapers(args: Namespace) -> list[Path]:
@@ -245,20 +225,8 @@ def set_wallpaper(wall: Path, no_smart: bool) -> None:
     if not is_valid_image(wall):
         raise ValueError(f'"{wall}" is not a valid image')
 
-    # Kill any running mpvpaper (switching from video to image)
-    subprocess.run(["pkill", "-9", "mpvpaper"], stderr=subprocess.DEVNULL)
-
     # Use gif's 1st frame for thumb only
     wall_cache = convert_gif(wall) if wall.suffix.lower() == ".gif" else wall
-
-    # Update files
-    wallpaper_path_path.parent.mkdir(parents=True, exist_ok=True)
-    wallpaper_path_path.write_text(str(wall))
-    wallpaper_type_path.parent.mkdir(parents=True, exist_ok=True)
-    wallpaper_type_path.write_text("image")
-    wallpaper_link_path.parent.mkdir(parents=True, exist_ok=True)
-    wallpaper_link_path.unlink(missing_ok=True)
-    wallpaper_link_path.symlink_to(wall)
 
     cache = wallpapers_cache_dir / compute_hash(wall_cache)
 
@@ -267,6 +235,18 @@ def set_wallpaper(wall: Path, no_smart: bool) -> None:
     wallpaper_thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
     wallpaper_thumbnail_path.unlink(missing_ok=True)
     wallpaper_thumbnail_path.symlink_to(thumb)
+
+    # Update state files
+    # IMPORTANT: Write type.txt BEFORE path.txt
+    # Shell's FileView on path.txt triggers displayPath recalc
+    # mediaType must already be "image" when that fires
+    wallpaper_type_path.parent.mkdir(parents=True, exist_ok=True)
+    wallpaper_type_path.write_text("image")
+    wallpaper_path_path.parent.mkdir(parents=True, exist_ok=True)
+    wallpaper_path_path.write_text(str(wall))
+    wallpaper_link_path.parent.mkdir(parents=True, exist_ok=True)
+    wallpaper_link_path.unlink(missing_ok=True)
+    wallpaper_link_path.symlink_to(wall)
 
     scheme = get_scheme()
 
@@ -295,37 +275,34 @@ def set_wallpaper(wall: Path, no_smart: bool) -> None:
 
 
 def set_video_wallpaper(video: Path, no_smart: bool) -> None:
-    """Set a video as wallpaper using mpvpaper with GPU acceleration"""
+    """Set a video as wallpaper (shell handles playback via QtMultimedia)"""
     # Make path absolute
     video = Path(video).resolve()
 
     if not is_valid_video(video):
         raise ValueError(f'"{video}" is not a valid video')
 
-    # CRITICAL: Kill ALL existing mpvpaper processes first
-    subprocess.run(["pkill", "-9", "mpvpaper"], stderr=subprocess.DEVNULL)
-
-    # Wait for cleanup to complete
-    time.sleep(0.5)
-
-    # Update state files
-    wallpaper_path_path.parent.mkdir(parents=True, exist_ok=True)
-    wallpaper_path_path.write_text(str(video))
-    wallpaper_type_path.parent.mkdir(parents=True, exist_ok=True)
-    wallpaper_type_path.write_text("video")
-    wallpaper_link_path.parent.mkdir(parents=True, exist_ok=True)
-    wallpaper_link_path.unlink(missing_ok=True)
-    wallpaper_link_path.symlink_to(video)
-
     # Extract a frame for theme colors
     video_frame = extract_video_frame(video)
     cache = wallpapers_cache_dir / compute_hash(video)
 
-    # Generate thumbnail from extracted frame
+    # Generate thumbnail from extracted frame (for UI previews)
     thumb = get_thumb(video_frame, cache)
     wallpaper_thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
     wallpaper_thumbnail_path.unlink(missing_ok=True)
     wallpaper_thumbnail_path.symlink_to(thumb)
+
+    # Update state files
+    # IMPORTANT: Write type.txt BEFORE path.txt
+    # Shell's FileView on path.txt triggers display update
+    # mediaType must already be "video" when that fires
+    wallpaper_type_path.parent.mkdir(parents=True, exist_ok=True)
+    wallpaper_type_path.write_text("video")
+    wallpaper_path_path.parent.mkdir(parents=True, exist_ok=True)
+    wallpaper_path_path.write_text(str(video))
+    wallpaper_link_path.parent.mkdir(parents=True, exist_ok=True)
+    wallpaper_link_path.unlink(missing_ok=True)
+    wallpaper_link_path.symlink_to(video)
 
     scheme = get_scheme()
 
@@ -338,31 +315,6 @@ def set_video_wallpaper(video: Path, no_smart: bool) -> None:
     # Update colours
     scheme.update_colours()
     apply_colours(scheme.colours, scheme.mode)
-
-    # Start mpvpaper with GPU acceleration
-    # Using auto hwdec to detect best method (nvdec for NVIDIA)
-    # Using bottom layer so shell doesn't cover it
-    mpv_opts = "no-audio loop hwdec=auto vo=gpu-next"
-
-    try:
-        subprocess.Popen(
-            [
-                "mpvpaper",
-                "-f",  # Fork (detach)
-                "-p",  # Auto-pause when hidden
-                "-l",
-                "bottom",  # Bottom layer (below shell)
-                "-o",
-                mpv_opts,
-                "*",  # All monitors
-                str(video),
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,  # Prevent zombie processes
-        )
-    except FileNotFoundError:
-        raise RuntimeError("mpvpaper not found. Install it to use video wallpapers.")
 
     # Run custom post-hook if configured
     try:
